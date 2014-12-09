@@ -4,6 +4,32 @@ defmodule UniqueID do
   end
 end
 
+defmodule EventBus do
+
+  @name {:local, __MODULE__}
+
+  def start_link do
+    :gen_event.start_link(@name)
+  end
+
+  def init(_) do
+    :ok
+  end
+
+  def add_listener(listener) do
+    :gen_event.add_handler(@name, listener, [])
+  end
+
+  def listeners do
+    :gen_event.which_handlers(@name)
+  end
+
+  def broadcast(uuid, event) do
+    :gen_event.notify(@name, {event, uuid})
+  end
+
+end
+
 defmodule EventStore do
 
   def start_link do
@@ -32,6 +58,7 @@ defmodule DomainRepository do
   def trigger(entity, event) do
     entity = apply_event(entity, event)
     store_event(entity.uuid, event)
+    broadcast_event(entity.uuid, event)
     entity
   end
 
@@ -41,6 +68,10 @@ defmodule DomainRepository do
 
   defp store_event(uuid, event) do
     EventStore.store(uuid, event)
+  end
+
+  defp broadcast_event(uuid, event) do
+    EventBus.broadcast(uuid, event)
   end
 
   def get(mod, uuid) do
@@ -89,7 +120,29 @@ defmodule PotionStore do
   end
 end
 
+defmodule EventDebugger do
+  use GenEvent
+
+  def init(_opts) do
+    {:ok, 0}
+  end
+
+  def handle_event({event, uuid}, counter) do
+    counter = counter + 1
+    IO.puts "Event ##{counter} #{inspect event}, UUID: #{inspect uuid}"
+    {:ok, counter}
+  end
+
+end
+
+EventBus.start_link
 EventStore.start_link
+
+
+IO.inspect EventBus.listeners
+
+#EventBus.add_listener(ItemCounter)
+EventBus.add_listener(EventDebugger)
 
 cart_uuid = UniqueID.generate
 
