@@ -27,7 +27,7 @@ defmodule PotionStore do
 
     alias __MODULE__, as: Cart
 
-    def create() do
+    def create(uuid) do
       event = {:cart_created, %{uuid: UniqueID.generate}}
       cart = %Cart{}
       DomainRepository.trigger(cart, event)
@@ -53,7 +53,7 @@ end
 
 
 cart =
-  PotionStore.ShoppingCart.create()
+  PotionStore.ShoppingCart.create(UniqueID.generate)
   |> PotionStore.ShoppingCart.add_item("Artline 100N")
   |> PotionStore.ShoppingCart.add_item("Coke classic")
   |> PotionStore.ShoppingCart.add_item("Coke zero")
