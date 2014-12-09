@@ -31,12 +31,12 @@ defmodule DomainRepository do
 
   def trigger(entity, event) do
     entity = apply_event(entity, event)
-    store_event(entity.uuid, event)
+    store_event(Entity.unique_id(entity), event)
     entity
   end
 
   def apply_event(entity, event) do
-    entity.__struct__.apply(entity, event)
+    Entity.apply(entity, event)
   end
 
   defp store_event(uuid, event) do
@@ -44,9 +44,21 @@ defmodule DomainRepository do
   end
 
   def get(mod, uuid) do
-    EventStore.fetch(uuid)
-    |> Enum.reduce(mod.new, &apply_event(&2, &1))
+    replay(Entity.new(mod), uuid)
   end
+
+  def replay(blank_entity, uuid) do
+    EventStore.fetch(uuid)
+    |> Enum.reduce(blank_entity, &apply_event(&2, &1))
+  end
+
+end
+
+defprotocol Entity do
+
+  def new(mod)
+  def unique_id(entity)
+  def apply(entity, event)
 
 end
 
@@ -56,10 +68,6 @@ defmodule PotionStore do
     defstruct uuid: nil, items: []
 
     alias __MODULE__, as: Cart
-
-    def new do
-      %Cart{}
-    end
 
     def create(uuid) do
       event = {:cart_created, %{uuid: uuid}}
@@ -72,8 +80,16 @@ defmodule PotionStore do
       DomainRepository.trigger(cart, event)
     end
 
-    def get(uuid) do
-      DomainRepository.get(__MODULE__, uuid)
+  end
+
+  defimpl Entity, for: ShoppingCart do
+
+    def new(mod) do
+      %PotionStore.ShoppingCart{}
+    end
+
+    def unique_id(entity) do
+      entity.uuid
     end
 
     #
@@ -102,5 +118,5 @@ IO.inspect cart
 
 IO.puts "====================="
 
-cart = PotionStore.ShoppingCart.get(cart_uuid)
+cart = DomainRepository.get(PotionStore.ShoppingCart, cart_uuid)
 IO.inspect cart
